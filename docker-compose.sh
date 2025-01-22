@@ -12,4 +12,4 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docke
 
 echo "Install docker-compose v2"
 apt update
-apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin -y
