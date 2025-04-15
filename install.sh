@@ -9,7 +9,7 @@ curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/docker-
 
 echo "安装Welcome 显示，需要提前安装vnstat"
 apt update && apt install vnstat
-curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/welcome.sh | bash
+ wget https://raw.githubusercontent.com/connor1988/script/refs/heads/main/welcome.sh -O /etc/profile.d/welcome.sh
 
 echo "debian vim不能粘贴WA"
 curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/vimpastewa.sh | bash
