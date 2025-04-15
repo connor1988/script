@@ -8,7 +8,7 @@ echo "安装docker v2版本"
 curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/docker-compose.sh | bash
 
 echo "安装Welcome 显示，需要提前安装vnstat"
-apt update && apt install vnstat jq
+apt update && apt install vnstat jq -y
  wget https://raw.githubusercontent.com/connor1988/script/refs/heads/main/welcome.sh -O /etc/profile.d/welcome.sh
 
 echo "debian vim不能粘贴WA"
