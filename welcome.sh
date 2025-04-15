@@ -141,7 +141,7 @@ echo -e " CPU Model:  $(lscpu | grep 'Model name' | grep -v 'BIOS'| awk -F: '{pr
 echo ""
 echo -e " On-line CPU(s) list:                  $(lscpu | grep 'On-line CPU' | awk -F: '{print $2}' | sed 's/^ *//')"
 echo ""
-echo -e " OS: ${BLUE}$(grep '^VERSION=' /etc/os-release | cut -d= -f2 | tr -d '"')${NC}"
+echo -e " OS: ${BLUE}$(awk -F= '/^PRETTY_NAME=/{gsub(/"/, "", $2); print $2}' /etc/os-release)${NC}"
 echo ""
 echo -e " Total Memory:        $(grep MemTotal /proc/meminfo | awk '{print $2}' ) kB"
 echo -e " Free Memory:         $(grep MemFree /proc/meminfo | awk '{print $2}' ) kB"
