@@ -50,7 +50,7 @@ print_hourly_network_usage() {
         for interface in $(ls /sys/class/net/); do
             if [[ "$interface" != "lo" && ! "$interface" == veth* && ! "$interface" == br-* ]]; then
                 echo -e "\n${BLUE}Interface: $interface${NC}"
-                vnstat -i "$interface" -h | tail -n 12
+                vnstat -i "$interface" -h 2 | tail -n 12
             fi
         done
     else
