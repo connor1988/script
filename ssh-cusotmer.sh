@@ -36,12 +36,37 @@ BACKUP_DIR="/etc/ssh/sshd_config.bak"
 # 创建备份目录
 mkdir -p "$BACKUP_DIR"
 
+# 检查 root 用户是否有 SSH 密钥
+echo -e "\033[34m检查 root 用户 SSH 密钥配置...\033[0m"
+if [ ! -f "/root/.ssh/authorized_keys" ] || [ ! -s "/root/.ssh/authorized_keys" ]; then
+    echo -e "\033[33m警告：root 用户没有配置 SSH 密钥！\033[0m"
+    echo -e "\033[33m继续操作可能导致 root 账户被锁定！\033[0m"
+    read -p "是否继续？(y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "\033[31m操作已取消\033[0m"
+        exit 1
+    fi
+else
+    echo -e "\033[32mroot 用户已配置 SSH 密钥\033[0m"
+fi
+
 # 备份旧配置
 if [ -f "$CONFIG_FILE" ]; then
     backup_file="${BACKUP_DIR}/sshd_$(date +%Y%m%d%H%M%S).bak"
     cp "$CONFIG_FILE" "$backup_file"
     echo -e "\033[34m配置已备份至：$backup_file\033[0m"
+else
+    # 检查主配置文件
+    if [ -f "/etc/ssh/sshd_config" ]; then
+        backup_file="${BACKUP_DIR}/sshd_$(date +%Y%m%d%H%M%S).bak"
+        cp "/etc/ssh/sshd_config" "$backup_file"
+        echo -e "\033[34m主配置文件已备份至：$backup_file\033[0m"
+    fi
 fi
+
+# 确保配置目录存在
+mkdir -p "$(dirname "$CONFIG_FILE")"
 
 # 生成新配置
 cat > "$CONFIG_FILE" << EOF
@@ -76,12 +101,24 @@ MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
 EOF
 
 # 配置语法检查
+echo -e "\033[34m正在检查 SSH 配置语法...\033[0m"
 if ! sshd -t -f "$CONFIG_FILE"; then
     echo -e "\033[31m错误：SSH 配置测试失败，请检查语法\033[0m"
     exit 1
 fi
 
+# 提示用户
+echo -e "\033[33mSSH 配置已准备好，即将重启服务。\033[0m"
+echo -e "\033[33m请确保你能够通过新端口使用密钥登录，否则可能会被锁定！\033[0m"
+read -p "是否继续重启 SSH 服务？(y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "\033[31m操作已取消，SSH 服务未重启\033[0m"
+    exit 1
+fi
+
 # 重启 SSH 服务
+echo -e "\033[34m正在重启 SSH 服务...\033[0m"
 systemctl restart ssh
 
 echo -e "\033[32mSSH 安全配置已完成，服务已重启！\033[0m"
