@@ -1,146 +1,135 @@
 #!/bin/bash
 
-# SSH 安全配置脚本功能：
+# SSH 安全配置脚本
+# 功能：
 # 1. 修改 SSH 端口
-# 2. 禁用密码登录，强制密钥认证
-# 3. 允许 root 登录（仅密钥）
-# 4. 允许其他用户登录（仅密钥）
-# 5. 自动配置备份与验证
-# 6. 服务重启
+# 2. 禁用密码登录，仅允许密钥登录
+# 3. 允许 root 登录（密钥）
+# 4. 指定允许登录的用户
+# 5. 自动备份、语法检查、重启 SSH
+# 6. 检查 root 是否被锁定，自动解锁
 
-set -e # 任何错误立即终止脚本
+set -e
 
-# ================= 用户配置区域 =================
-NEW_PORT="$1"                  # 通过参数指定新端口
-ALLOWED_USERS="${2:-}"         # 可选参数：指定允许登录的用户（逗号分隔）
-# ================================================
+# ================= 用户输入 =================
+NEW_PORT="$1"                  # 新的 SSH 端口号
+ALLOWED_USERS="${2:-}"         # 允许登录的用户（可选）
+# ============================================
 
-# 检查 root 权限
+# 0. 必须是 root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "\033[31m错误：必须使用 sudo 或 root 用户执行\033[0m"
+    echo -e "\033[31m错误：必须使用 root 权限运行\033[0m"
     exit 1
 fi
 
-# 验证端口参数
-if [ -z "$NEW_PORT" ] || ! [[ "$NEW_PORT" =~ ^[0-9]+$ ]] || [ "$NEW_PORT" -lt 1024 -o "$NEW_PORT" -gt 65535 ]; then
-    echo -e "\033[31m错误：必须指定 1024-65535 的有效端口号\033[0m"
+# 1. 参数验证
+if [ -z "$NEW_PORT" ] || ! [[ "$NEW_PORT" =~ ^[0-9]+$ ]] || [ "$NEW_PORT" -lt 1024 ] || [ "$NEW_PORT" -gt 65535 ]; then
+    echo -e "\033[31m错误：请提供一个 1024-65535 的合法端口号\033[0m"
     echo "用法：sudo bash $0 <端口号> [允许用户列表]"
     echo "示例：sudo bash $0 2222 \"admin,deploy\""
     exit 1
 fi
 
-# 配置文件参数
-CONFIG_FILE="/etc/ssh/sshd_config.d/99-ssh-security.conf"
-BACKUP_DIR="/etc/ssh/sshd_config.bak"
-
-# 创建备份目录
-mkdir -p "$BACKUP_DIR"
-
-# 检查 root 用户是否有 SSH 密钥
-echo -e "\033[34m检查 root 用户 SSH 密钥配置...\033[0m"
-if [ ! -f "/root/.ssh/authorized_keys" ] || [ ! -s "/root/.ssh/authorized_keys" ]; then
-    echo -e "\033[33m警告：root 用户没有配置 SSH 密钥！\033[0m"
-    echo -e "\033[33m继续操作可能导致 root 账户被锁定！\033[0m"
-    read -p "是否继续？(y/N) " -n 1 -r
+# 2. 检查 root SSH 密钥
+echo -e "\033[34m检查 root 用户 SSH 密钥...\033[0m"
+if [ ! -s "/root/.ssh/authorized_keys" ]; then
+    echo -e "\033[33m警告：/root/.ssh/authorized_keys 不存在或为空\033[0m"
+    read -p "是否继续？(y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "\033[31m操作已取消\033[0m"
+        echo -e "\033[31m已取消操作。\033[0m"
         exit 1
     fi
 else
-    echo -e "\033[32mroot 用户已配置 SSH 密钥\033[0m"
+    echo -e "\033[32m√ root 密钥已配置\033[0m"
 fi
 
-# 备份旧配置
+# 3. 配置路径
+CONFIG_FILE="/etc/ssh/sshd_config.d/99-ssh-security.conf"
+BACKUP_DIR="/etc/ssh/sshd_config.bak"
+mkdir -p "$BACKUP_DIR"
+
+# 4. 备份配置
 if [ -f "$CONFIG_FILE" ]; then
-    backup_file="${BACKUP_DIR}/sshd_$(date +%Y%m%d%H%M%S).bak"
-    cp "$CONFIG_FILE" "$backup_file"
-    echo -e "\033[34m配置已备份至：$backup_file\033[0m"
+    cp "$CONFIG_FILE" "$BACKUP_DIR/sshd_$(date +%Y%m%d%H%M%S).bak"
 else
-    # 检查主配置文件
-    if [ -f "/etc/ssh/sshd_config" ]; then
-        backup_file="${BACKUP_DIR}/sshd_$(date +%Y%m%d%H%M%S).bak"
-        cp "/etc/ssh/sshd_config" "$backup_file"
-        echo -e "\033[34m主配置文件已备份至：$backup_file\033[0m"
-    fi
+    [ -f /etc/ssh/sshd_config ] && cp /etc/ssh/sshd_config "$BACKUP_DIR/sshd_$(date +%Y%m%d%H%M%S).bak"
 fi
 
-# 确保配置目录存在
+# 5. 写入新配置
 mkdir -p "$(dirname "$CONFIG_FILE")"
-
-# 生成新配置
 cat > "$CONFIG_FILE" << EOF
-# ===== SSH 安全配置 - 生成时间：$(date) =====
+# 生成时间：$(date)
 
-# 基础安全配置
 Port $NEW_PORT
 AddressFamily inet
 Protocol 2
 
-# 认证配置
 PermitRootLogin prohibit-password
 PasswordAuthentication no
 PubkeyAuthentication yes
 ChallengeResponseAuthentication no
 UsePAM no
 
-# 用户访问控制
 $([ -n "$ALLOWED_USERS" ] && echo "AllowUsers ${ALLOWED_USERS//,/ }")
 
-# 会话设置
 ClientAliveInterval 300
 ClientAliveCountMax 2
 MaxAuthTries 3
 MaxSessions 5
 
-# 加密算法增强
 HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-ed25519
 KexAlgorithms curve25519-sha256@libssh.org
 Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
 EOF
 
-# 配置语法检查
-echo -e "\033[34m正在检查 SSH 配置语法...\033[0m"
+# 6. 检查语法
+echo -e "\033[34m验证 SSH 配置语法...\033[0m"
 if ! sshd -t -f "$CONFIG_FILE"; then
-    echo -e "\033[31m错误：SSH 配置测试失败，请检查语法\033[0m"
+    echo -e "\033[31m错误：SSH 配置无效，请检查语法。\033[0m"
     exit 1
 fi
 
-# 提示用户
-echo -e "\033[33mSSH 配置已准备好，即将重启服务。\033[0m"
-echo -e "\033[33m请确保你能够通过新端口使用密钥登录，否则可能会被锁定！\033[0m"
-read -p "是否继续重启 SSH 服务？(y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "\033[31m操作已取消，SSH 服务未重启\033[0m"
-    exit 1
+# 7. 检查 root 是否被锁
+ROOT_LOCKED=$(passwd -S root | awk '{print $2}')
+if [ "$ROOT_LOCKED" = "L" ]; then
+    echo -e "\033[33m警告：root 账户已锁定，尝试解锁...\033[0m"
+    if passwd -u root; then
+        echo -e "\033[32m√ root 账户已解锁\033[0m"
+    else
+        echo -e "\033[31m× 解锁失败，请手动检查 root 状态\033[0m"
+    fi
+else
+    echo -e "\033[32m√ root 未锁定\033[0m"
 fi
 
-# 重启 SSH 服务
+# 8. 重启 SSH 服务（兼容 sshd/ssh）
 echo -e "\033[34m正在重启 SSH 服务...\033[0m"
-systemctl restart ssh
+if systemctl list-units --type=service | grep -q "sshd.service"; then
+    systemctl restart sshd
+else
+    systemctl restart ssh
+fi
 
-echo -e "\033[32mSSH 安全配置已完成，服务已重启！\033[0m"
+echo -e "\033[32m√ SSH 配置已生效，服务已重启！\033[0m"
 
-# 显示关键提示
+# 9. 提示后续操作
 cat << EOF
 
-\033[33m=== 后续操作指南 ===\033[0m
-1. 公钥部署要求：
-   - Root 用户：/root/.ssh/authorized_keys
-   - 普通用户：~/.ssh/authorized_keys
-   - 权限设置：chmod 600 对应文件
+\033[33m=== 后续操作建议 ===\033[0m
 
-2. 防火墙配置：
+1. 测试登录新端口（新会话）：
+   ssh -p $NEW_PORT root@<服务器IP>
+
+2. 建议修改防火墙规则：
    ufw allow $NEW_PORT/tcp
    ufw deny 22/tcp
 
-3. 连接测试命令：
-   ssh -p $NEW_PORT -i ~/.ssh/私钥 用户名@服务器IP
+3. 权限要求：
+   - ~/.ssh/authorized_keys 文件必须存在，权限为 600
+   - ~/.ssh 目录权限为 700
 
-4. 重要警告：
-   - 确保至少有一个用户已配置公钥
-   - 测试连接后再关闭当前会话
-   - 生产环境建议启用 fail2ban
+4. 如无法登录，可使用控制台修复。
+
 EOF
