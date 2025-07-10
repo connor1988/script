@@ -87,13 +87,25 @@ EOF
 echo -e "\033[34m检查 SSH 配置语法...\033[0m"
 sshd -t -f "$CONFIG_FILE" || { echo -e "\033[31m错误：SSH 配置无效，请检查。\033[0m"; exit 1; }
 
-# 8. 检查并解锁 root（如锁定）
+# 8. 安全解锁 root（如果被锁定）
 ROOT_STATUS=$(passwd -S root | awk '{print $2}')
 if [ "$ROOT_STATUS" = "L" ]; then
-    echo -e "\033[33mroot 被锁定，尝试解锁...\033[0m"
-    passwd -u root && echo -e "\033[32m√ root 解锁成功\033[0m" || echo -e "\033[31m× 解锁失败\033[0m"
+    echo -e "\033[33m⚠ root 账户当前被锁定，尝试使用无密码方式解锁...\033[0m"
+
+    # 将 root 密码字段设为 *（禁止密码登录，但解锁账户）
+    if usermod -p '*' root; then
+        echo -e "\033[32m√ 成功设置 root 为无密码状态\033[0m"
+        # 尝试解锁
+        if passwd -u root; then
+            echo -e "\033[32m√ root 已成功解锁（无密码，适用于密钥登录）\033[0m"
+        else
+            echo -e "\033[31m× passwd -u 执行失败，请手动检查 root 状态\033[0m"
+        fi
+    else
+        echo -e "\033[31m× 无法通过 usermod 解锁 root，请手动检查 /etc/shadow 状态\033[0m"
+    fi
 else
-    echo -e "\033[32m√ root 未锁定\033[0m"
+    echo -e "\033[32m√ root 账户未锁定，无需处理\033[0m"
 fi
 
 # 9. 重启 SSH 服务
