@@ -4,7 +4,7 @@ echo "Execute apt update"
 apt upgrade -y
 
 echo "Install Necessary softwares"
-apt install curl vim wget gnupg dpkg apt-transport-https lsb-release ca-certificates -y
+apt install curl vim wget gnupg dpkg apt-transport-https lsb-release ca-certificates gpg -y
 
 echo "Add docker compose v2 to soruce list"
 curl -sSL https://download.docker.com/linux/debian/gpg | gpg --dearmor > /usr/share/keyrings/docker-ce.gpg
