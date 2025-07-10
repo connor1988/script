@@ -1,3 +1,8 @@
+
+
+echo "Fix locale error"
+curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/locale-error.sh | bash
+
 echo "应用BBR"
 curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/ApplyBBR.sh | bash
 
