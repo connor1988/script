@@ -18,3 +18,27 @@ echo "安装Welcome 显示，需要提前安装vnstat"
 
 echo "debian vim不能粘贴WA"
 curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/vimpastewa.sh | bash
+
+
+#Add change ssh port script
+# 询问用户是否要运行脚本
+read -p "是否要运行SSH端口修改脚本? (Y/N): " answer
+
+# 检查用户输入
+if [[ "$answer" =~ ^[Yy]$ ]]; then
+    # 提示用户输入端口
+    read -p "请输入端口号: " port
+
+    # 验证端口号是否为数字
+    if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+        echo "错误: 端口号必须是数字" >&2
+        exit 1
+    fi
+
+    # 构建并执行curl命令
+    echo "正在运行脚本，端口号: $port"
+    curl https://raw.githubusercontent.com/connor1988/script/refs/heads/main/ssh-cusotmer.sh | bash -s "$port"
+else
+    echo "已取消操作"
+    exit 0
+fi   
